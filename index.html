@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Money</title>
+<title>1 Trillion</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -288,7 +288,7 @@
       try { backup = JSON.parse(text); } catch (e) {}
       const ok = backup && Array.isArray(backup.entries) &&
         backup.entries.every(e => e && typeof e.time === 'string' && Number.isInteger(e.paise));
-      if (!ok) { alert('This file is not a Money backup.'); return; }
+      if (!ok) { alert('This file is not a 1 Trillion backup.'); return; }
       const msg = 'Load this backup? Its total is ' + rupees(sum(backup.entries)) +
                   '.\nYour current data will be replaced.';
       if (!confirm(msg)) return;
