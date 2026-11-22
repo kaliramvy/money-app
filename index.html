@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Money</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111317" media="(prefers-color-scheme: dark)">
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #16181d; --muted: #6b7280;
+    --green: #15803d; --green-bg: #e8f6ed; --green-text: #15803d;
+    --red: #b91c1c; --red-bg: #fbeaea; --red-text: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111317; --card: #1a1d23; --text: #f1f2f4; --muted: #9aa0aa;
+      --green-bg: #13281b; --green-text: #4ade80;
+      --red-bg: #2c1617; --red-text: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: max(24px, env(safe-area-inset-top)) 16px 24px;
+  }
+  main { max-width: 480px; margin: 0 auto; }
+
+  .total { text-align: center; padding: 32px 0 36px; }
+  .total .label { font-size: 15px; color: var(--muted); }
+  .total .amount-line {
+    display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline;
+    gap: 2px 10px; margin-top: 6px;
+  }
+  .total .amount {
+    font-size: 44px; font-weight: 700;
+    font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+  }
+  .total .short { font-size: 20px; font-weight: 600; color: var(--muted); }
+  .total .amount.negative { color: var(--red-text); }
+  body.trading .total .label { color: var(--text); font-weight: 600; }
+  body:not(.trading) .on-trading, body.trading .on-home { display: none; }
+
+  form { display: flex; gap: 10px; margin-bottom: 16px; }
+  input {
+    flex: 1; min-width: 0; font-size: 20px; padding: 14px 10px;
+    border-radius: 12px; color: var(--text); text-align: center;
+  }
+  input::placeholder { color: var(--muted); }
+  input.add    { background: var(--green-bg); border: 2px solid var(--green); }
+  input.deduct { background: var(--red-bg);   border: 2px solid var(--red); }
+  button { font-size: 18px; font-weight: 600; border: 0; border-radius: 12px; }
+  .plus {
+    flex: none; width: 56px; display: flex; align-items: center; justify-content: center;
+    background: var(--text); color: var(--bg);
+  }
+  .plus svg {
+    width: 26px; height: 26px; fill: none; stroke: currentColor;
+    stroke-width: 2.5; stroke-linecap: round;
+  }
+
+  .tools { display: flex; gap: 10px; margin-top: 8px; }
+  .tools button {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 12px 0; font-size: 13px; font-weight: 500;
+    background: var(--card); color: var(--text);
+    border: 1px solid rgba(127, 127, 127, 0.25);
+  }
+  .tools button:disabled { opacity: 0.4; }
+  .tools svg {
+    width: 22px; height: 22px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  }
+
+  #months { margin-top: 20px; }
+  .year { font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+  .row { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
+  .box {
+    min-width: 0; padding: 4px 0; border-radius: 6px; text-align: center;
+    background: var(--card); border: 1px solid rgba(127, 127, 127, 0.2);
+    overflow: hidden; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .box .m { font-size: 9px; color: var(--muted); }
+  .box .v { font-size: 10px; font-weight: 600; height: 13px; line-height: 13px; letter-spacing: -0.3px; }
+  .box.up   { background: var(--green-bg); border-color: var(--green); color: var(--green-text); }
+  .box.down { background: var(--red-bg);   border-color: var(--red);   color: var(--red-text); }
+</style>
+</head>
+<body>
+<main>
+  <div class="total">
+    <div class="label"><span class="on-home">Total money</span><span class="on-trading">Trading total</span></div>
+    <div class="amount-line">
+      <span class="amount" id="total">₹0</span>
+      <span class="short" id="total-short"></span>
+    </div>
+  </div>
+
+  <form id="entry-form">
+    <input class="add" id="add-input" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Add">
+    <button class="plus" type="submit" aria-label="Enter">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <input class="deduct" id="deduct-input" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Deduct">
+  </form>
+
+  <div class="tools">
+    <button type="button" id="mode">
+      <svg class="on-home" viewBox="0 0 24 24"><path d="M9 5v4"/><rect x="7" y="9" width="4" height="6" rx="1"/><path d="M9 15v2"/><path d="M17 3v2"/><rect x="15" y="5" width="4" height="8" rx="1"/><path d="M17 13v3"/><path d="M3 3v18h18"/></svg>
+      <svg class="on-trading" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      <span class="on-home">Trading</span>
+      <span class="on-trading">Back</span>
+    </button>
+    <button type="button" id="undo">
+      <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+      Undo
+    </button>
+    <button type="button" id="save">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+      Save
+    </button>
+    <button type="button" id="load">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+      Load
+    </button>
+  </div>
+  <input type="file" id="picker" hidden>
+
+  <div id="months"></div>
+</main>
+
+<script>
+  // Every add or deduct is saved as one entry: { time, paise }.
+  // Paise (whole numbers) avoid rounding errors like 0.1 + 0.2.
+  const KEY = 'money-app';
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || { entries: [] }; }
+    catch (e) { return { entries: [] }; }
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(data)); }
+    catch (e) { alert('Could not save. This entry will be lost when the app closes.'); }
+  }
+
+  function rupees(paise) {
+    const digits = paise % 100 === 0 ? 0 : 2;
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency', currency: 'INR',
+      minimumFractionDigits: digits, maximumFractionDigits: digits
+    }).format(paise / 100);
+  }
+
+  function sum(entries) {
+    return entries.reduce((total, e) => total + e.paise, 0);
+  }
+
+  // Main page shows all entries; trading page shows only trading entries.
+  function visible() {
+    return trading ? data.entries.filter(e => e.trading) : data.entries;
+  }
+
+  // Short money for the month boxes: 950, 1.2k, 12k, 1.5L, 1.2Cr. Colour shows + or −.
+  function short(paise) {
+    const r = Math.round(Math.abs(paise) / 100);   // whole rupees first, so ₹999.50 shows 1k
+    for (const [size, name] of [[1e7, 'Cr'], [1e5, 'L'], [1e3, 'k']]) {
+      if (r >= size) {
+        const n = r / size;
+        return (n < 10 ? Math.round(n * 10) / 10 : Math.round(n)) + name;
+      }
+    }
+    return String(r);
+  }
+
+  // One row per year (newest on top), 12 boxes: money in minus money out for that month.
+  function showMonths(list) {
+    const net = {};   // 'year-month' -> paise
+    const now = new Date().getFullYear();
+    let first = now, last = now;
+    for (const e of list) {
+      const d = new Date(e.time);
+      const key = d.getFullYear() + '-' + d.getMonth();
+      net[key] = (net[key] || 0) + e.paise;
+      first = Math.min(first, d.getFullYear());
+      last = Math.max(last, d.getFullYear());
+    }
+    let html = '';
+    for (let y = last; y >= first; y--) {
+      html += '<div class="year">' + y + '</div><div class="row">';
+      for (let m = 0; m < 12; m++) {
+        const v = net[y + '-' + m];
+        const cls = v > 0 ? ' up' : v < 0 ? ' down' : '';
+        const text = v === undefined ? '' : short(v);
+        const title = v === undefined ? '' : ' title="' + rupees(v) + '"';
+        html += '<div class="box' + cls + '"' + title + '><div class="m">' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m] +
+                '</div><div class="v">' + text + '</div></div>';
+      }
+      html += '</div>';
+    }
+    document.getElementById('months').innerHTML = html;
+  }
+
+  function show() {
+    const list = visible();
+    const total = sum(list);
+    const el = document.getElementById('total');
+    el.textContent = rupees(total);
+    el.classList.toggle('negative', total < 0);
+    // Short form beside the total (1.2k, 1.3L, 1.2Cr), only from ₹1,000 up.
+    document.getElementById('total-short').textContent =
+      Math.abs(total) >= 100000 ? (total < 0 ? '−' : '') + short(total) : '';
+    document.getElementById('undo').disabled = list.length === 0;
+    document.body.classList.toggle('trading', trading);
+    showMonths(list);
+  }
+
+  // The + button enters both boxes: green is added, red is deducted.
+  function enter(ev) {
+    ev.preventDefault();
+    const time = new Date().toISOString();
+    let changed = false;
+    for (const [id, sign] of [['add-input', +1], ['deduct-input', -1]]) {
+      const input = document.getElementById(id);
+      const value = Number(input.value);
+      if (value > 0) {
+        const entry = { time, paise: sign * Math.round(value * 100) };
+        if (trading) entry.trading = true;
+        data.entries.push(entry);
+        changed = true;
+      }
+      input.value = '';
+    }
+    if (changed) { save(); show(); }
+    document.activeElement.blur();
+  }
+
+  // Undo: removes the last + press on this page (both boxes, if both were filled).
+  function undo() {
+    const list = visible();
+    if (list.length === 0) return;
+    const time = list[list.length - 1].time;
+    data.entries = data.entries.filter(e => e.time !== time);
+    save();
+    show();
+  }
+
+  // Save: downloads all entries as a backup file you can open and read.
+  function saveBackup() {
+    const day = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local date
+    const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'money-backup-' + day + '.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // Load: reads a backup file and replaces current entries, after asking.
+  function loadBackup(file) {
+    file.text().then(text => {
+      let backup = null;
+      try { backup = JSON.parse(text); } catch (e) {}
+      const ok = backup && Array.isArray(backup.entries) &&
+        backup.entries.every(e => e && typeof e.time === 'string' && Number.isInteger(e.paise));
+      if (!ok) { alert('This file is not a Money backup.'); return; }
+      const msg = 'Load this backup? Its total is ' + rupees(sum(backup.entries)) +
+                  '.\nYour current data will be replaced.';
+      if (!confirm(msg)) return;
+      data.entries = backup.entries;
+      save();
+      show();
+    });
+  }
+
+  const data = load();
+  let trading = false;   // which page is open: false = main, true = trading
+  document.getElementById('entry-form').addEventListener('submit', enter);
+  document.getElementById('mode').addEventListener('click', () => { trading = !trading; show(); });
+
+  const picker = document.getElementById('picker');
+  document.getElementById('undo').addEventListener('click', undo);
+  document.getElementById('save').addEventListener('click', saveBackup);
+  document.getElementById('load').addEventListener('click', () => picker.click());
+  picker.addEventListener('change', () => {
+    if (picker.files[0]) loadBackup(picker.files[0]);
+    picker.value = '';
+  });
+
+  show();
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
