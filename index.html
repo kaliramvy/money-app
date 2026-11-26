@@ -71,15 +71,40 @@
     border: 1px solid rgba(127, 127, 127, 0.25);
   }
   .tools button:disabled { opacity: 0.4; }
-  .tools svg {
+  .tools svg, .head svg {
     width: 22px; height: 22px; fill: none; stroke: currentColor;
     stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
   }
 
-  #months {
+  #months, #history-list {
     flex: 1; min-height: 0; overflow-y: auto; margin-top: 16px; padding: 2px 10px 12px;
     background: var(--card); border: 1px solid rgba(127, 127, 127, 0.2); border-radius: 14px;
   }
+
+  /* History page: shown in place of the main page. */
+  body:not(.history) #history-page, body.history #home { display: none; }
+  .head { display: flex; align-items: center; gap: 12px; }
+  .head button {
+    width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+    background: var(--card); color: var(--text); border: 1px solid rgba(127, 127, 127, 0.25);
+  }
+  .head .title { font-size: 18px; font-weight: 600; }
+  #history-list { padding: 2px 14px 12px; }
+  .day { font-size: 13px; font-weight: 600; color: var(--muted); margin: 14px 0 2px; }
+  .entry {
+    display: flex; align-items: center; gap: 8px; padding: 10px 0;
+    border-top: 1px solid rgba(127, 127, 127, 0.15); font-variant-numeric: tabular-nums;
+  }
+  .day + .entry { border-top: 0; }
+  .entry .t { font-size: 15px; color: var(--muted); }
+  .entry .tag {
+    font-size: 11px; color: var(--muted); padding: 1px 6px;
+    border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 6px;
+  }
+  .entry .a { margin-left: auto; font-size: 17px; font-weight: 600; }
+  .entry .a.up   { color: var(--green-text); }
+  .entry .a.down { color: var(--red-text); }
+  .empty { text-align: center; color: var(--muted); padding: 24px 0; }
   .year { font-size: 13px; font-weight: 600; color: var(--muted); margin: 10px 0 6px; }
   .row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
   .box {
@@ -104,7 +129,7 @@
   .now .box .v { font-size: 16px; height: 32px; line-height: 32px; }   /* same height as a month box */</style>
 </head>
 <body>
-<main>
+<main id="home">
   <div class="total">
     <div class="label"><span class="on-home">Total money</span><span class="on-trading">Trading total</span></div>
     <div class="amount-line">
@@ -128,6 +153,10 @@
       <span class="on-home">Trading</span>
       <span class="on-trading">Back</span>
     </button>
+    <button type="button" id="history-open">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      History
+    </button>
     <button type="button" id="undo">
       <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
       Undo
@@ -144,6 +173,16 @@
   <input type="file" id="picker" hidden>
 
   <div id="months"></div>
+</main>
+
+<main id="history-page">
+  <div class="head">
+    <button type="button" id="history-back" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+    </button>
+    <div class="title"><span class="on-home">History</span><span class="on-trading">Trading history</span></div>
+  </div>
+  <div id="history-list"></div>
 </main>
 
 <script>
@@ -260,11 +299,49 @@
     document.activeElement.blur();
   }
 
-  // Undo: removes the last + press on this page (both boxes, if both were filled).
+  // Exact money for history and undo, with its sign: +₹5,000, −₹26.54.
+  function exact(paise) {
+    const r = new Intl.NumberFormat('en-IN', {
+      style: 'currency', currency: 'INR',
+      minimumFractionDigits: paise % 100 ? 2 : 0, maximumFractionDigits: 2
+    }).format(Math.abs(paise) / 100);
+    return (paise < 0 ? '−' : '+') + r;
+  }
+
+  const DAY  = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
+  const TIME = { hour: 'numeric', minute: '2-digit' };
+
+  // History: every entry on this page, newest first, under its day.
+  function showHistory() {
+    const list = visible().slice().sort((a, b) => b.time.localeCompare(a.time));
+    const today = new Date().toDateString();
+    let html = '', lastDay = '';
+    for (const e of list) {
+      const d = new Date(e.time);
+      if (d.toDateString() !== lastDay) {
+        lastDay = d.toDateString();
+        html += '<div class="day">' + (lastDay === today ? 'Today · ' : '') +
+                d.toLocaleDateString('en-IN', DAY) + '</div>';
+      }
+      const tag = !trading && e.trading ? '<span class="tag">Trading</span>' : '';
+      html += '<div class="entry"><span class="t">' + d.toLocaleTimeString('en-IN', TIME) + '</span>' + tag +
+              '<span class="a ' + (e.paise < 0 ? 'down' : 'up') + '">' + exact(e.paise) + '</span></div>';
+    }
+    const el = document.getElementById('history-list');
+    el.innerHTML = html || '<div class="empty">No entries yet.</div>';
+    el.scrollTop = 0;
+  }
+
+  // Undo: removes the last + press on this page (both boxes, if both were filled), after asking.
   function undo() {
     const list = visible();
     if (list.length === 0) return;
     const time = list[list.length - 1].time;
+    const d = new Date(time);
+    const msg = 'Undo the last entry?\n\n' + d.toLocaleDateString('en-IN', DAY) + ', ' +
+                d.toLocaleTimeString('en-IN', TIME) + '\n' +
+                list.filter(e => e.time === time).map(e => exact(e.paise)).join('\n');
+    if (!confirm(msg)) return;
     data.entries = data.entries.filter(e => e.time !== time);
     save();
     show();
@@ -302,6 +379,15 @@
   let trading = false;   // which page is open: false = main, true = trading
   document.getElementById('entry-form').addEventListener('submit', enter);
   document.getElementById('mode').addEventListener('click', () => { trading = !trading; show(); });
+
+  // History opens like a new page, so the phone's back button closes it.
+  document.getElementById('history-open').addEventListener('click', () => {
+    document.body.classList.add('history');
+    showHistory();
+    history.pushState('history', '');
+  });
+  document.getElementById('history-back').addEventListener('click', () => history.back());
+  window.addEventListener('popstate', () => document.body.classList.remove('history'));
 
   const picker = document.getElementById('picker');
   document.getElementById('undo').addEventListener('click', undo);
